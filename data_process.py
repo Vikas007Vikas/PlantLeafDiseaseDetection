@@ -3,9 +3,10 @@ import os, os.path
 import cv2
 from collections import defaultdict
 import numpy as np
+import matplotlib.pyplot as plt
 
 imgs = []
-path = "/home/vkamineni/Documents/Sem1/DataMining/Project/PlantVillage-Dataset/raw/color/"
+path = "/home/vkamineni/Documents/Sem1/DataMining/Project/PlantVillage-Dataset/raw/segmented/"
 valid_images = [".jpg",".gif",".png",".tga"]
 
 # Creating dictionary of lists - {'dir_name': ['list of files in directory']}
@@ -16,15 +17,15 @@ for dir in os.listdir(path):
         image_dict[dir].append(each_image)
 
 # Create "saliency maps directory to store Saliency maps of each corresponding image"
-saliency_dir = "/home/vkamineni/Documents/Sem1/DataMining/Project/PlantVillage-Dataset/raw/saliency_maps"
+saliency_dir = "/home/vkamineni/Documents/Sem1/DataMining/Project/PlantVillage-Dataset/raw/segmented_saliency_maps"
 if not os.path.exists(saliency_dir):
     os.makedirs(saliency_dir)
 
-thresh_map_dir = "/home/vkamineni/Documents/Sem1/DataMining/Project/PlantVillage-Dataset/raw/threshold_maps"
+thresh_map_dir = "/home/vkamineni/Documents/Sem1/DataMining/Project/PlantVillage-Dataset/raw/segmented_threshold_maps"
 if not os.path.exists(thresh_map_dir):
     os.makedirs(thresh_map_dir)
 
-saliency_imposed_images = "/home/vkamineni/Documents/Sem1/DataMining/Project/PlantVillage-Dataset/raw/saliency_imposed"
+saliency_imposed_images = "/home/vkamineni/Documents/Sem1/DataMining/Project/PlantVillage-Dataset/raw/segmented_saliency_imposed"
 if not os.path.exists(saliency_imposed_images):
     os.makedirs(saliency_imposed_images)
 
@@ -43,9 +44,13 @@ for dir in image_dict:
     if not os.path.exists(saliency_imposed_path):
         os.makedirs(saliency_imposed_path)
 
+    cnt = 1
     for each_img in image_dict[dir]:
         original_img_path = os.path.join(path, dir)
         image = cv2.imread(os.path.join(original_img_path, each_img))
+        if (image.shape[0]!=256 or image.shape[1]!=256):
+            print(image.shape)
+        image = cv2.resize(image, (256, 256), interpolation = cv2.INTER_AREA)
         
         saliency = cv2.saliency.StaticSaliencyFineGrained_create()
         (success, saliencyMap) = saliency.computeSaliency(image)
@@ -60,6 +65,7 @@ for dir in image_dict:
         salRed = salRed.astype("uint8")
 
         reduction = np.ones((256,256))
+        #saliencyMap = cv2.resize(saliencyMap, (256, 256), interpolation = cv2.INTER_AREA)
         inverse = reduction - saliencyMap
 
         inverseBlue = B * inverse.astype(inverse.dtype)
@@ -82,4 +88,6 @@ for dir in image_dict:
         threshMap = cv2.threshold(saliencyMap.astype("uint8"), 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
         threshMap_path = os.path.join(thresh_map_dir, dir)
         cv2.imwrite(os.path.join(threshMap_path, each_img), threshMap)
+
+        cnt+=1
 

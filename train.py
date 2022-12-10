@@ -4,14 +4,21 @@ from datetime import datetime
 import torch
 import torch.nn as nn
 from sklearn.metrics import classification_report
+from sklearn.utils import class_weight
+import os
 
-def batch_gd(model, optimizer, criterion, train_loader, validation_loader, epochs, device):
+def batch_gd(model, optimizer, criterion1, criterion2, train_loader, validation_loader, epochs, device, modelType):
     softmax = nn.Softmax(dim=1)
     train_losses = np.zeros(epochs)
     validation_losses = np.zeros(epochs)
     validation_loss_min = np.inf
 
-    save_dir = './saved_models/'
+    if (modelType == 0):
+        save_dir = './ResNet_saved_models/'
+    else:
+        save_dir = './AlexNet_saved_models/'
+    
+    os.makedirs(save_dir, exist_ok=True)
 
     for e in range(epochs):
         #print(e)
@@ -25,13 +32,22 @@ def batch_gd(model, optimizer, criterion, train_loader, validation_loader, epoch
         for inputs, targets in train_loader:
             inputs, targets = inputs.to(device), targets.to(device)
             optimizer.zero_grad()
-            output = model(inputs)
-            loss = criterion(output, targets)
+            loss2 = 0
+            if (modelType == 2):
+                output_model, out_autoencoder = model(inputs)
+                loss1 = criterion1(output_model, targets)
+                loss2 = criterion2(out_autoencoder, inputs)
+            else:
+                output_model = model(inputs)
+                loss1 = criterion1(output_model, targets)
+            loss = loss1 + loss2
+            y_true.extend(targets)
             train_loss.append(loss.item())
             loss.backward()
             optimizer.step()
         print("TRAINING DONE")
         print('*'*20)
+
 
         train_loss = np.mean(train_loss)
 
@@ -42,13 +58,19 @@ def batch_gd(model, optimizer, criterion, train_loader, validation_loader, epoch
         model.eval()
         for inputs, targets in validation_loader:
             inputs, targets = inputs.to(device), targets.to(device)
-            output = model(inputs)
+            if (modelType == 2):
+                output_model, out_autoencoder = model(inputs)
+                loss1 = criterion1(output_model, targets)
+                loss2 = criterion2(out_autoencoder, inputs)
+            else:
+                output_model = model(inputs)
+                loss1 = criterion1(output_model, targets)
             
-            predictions = torch.argmax(softmax(output),dim=1)
+            predictions = torch.argmax(softmax(output_model),dim=1)
             y_pred.extend(predictions)
             y_true.extend(targets)
             
-            loss = criterion(output, targets)
+            loss = loss1 + loss2
             validation_loss.append(loss.item())
 
         print("VALIDATION DONE")

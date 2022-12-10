@@ -11,13 +11,13 @@ from torch.utils.data.sampler import SubsetRandomSampler
 from sklearn.metrics import classification_report
 import torch.nn as nn
 import torch.optim as optim
-# from torchsummary import summary
+from torchsummary import summary
 from datetime import datetime
 from train import batch_gd
-from model import MyModel
+from model import ResNet101, AlexNet, MyModel
 from load_dataset import create_torch_loaders, create_test_loader
 
-def accuracy(loader):
+def accuracy(loader, modelType):
     n_correct = 0
     n_total = 0
     y_pred = []
@@ -27,9 +27,12 @@ def accuracy(loader):
     for inputs, targets in loader:
         inputs, targets = inputs.to(device), targets.to(device)
 
-        outputs = model(inputs)
+        if (modelType == 2):
+            output_model, out_autoencoder = model(inputs)
+        else:
+            output_model = model(inputs)
 
-        predictions = torch.argmax(softmax(outputs),dim=1)
+        predictions = torch.argmax(softmax(output_model),dim=1)
         y_pred.extend(predictions)
         y_true.extend(targets)
 
@@ -45,10 +48,11 @@ def accuracy(loader):
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--mode', type=int, required=True, help="Please specify 1 if trained and 0 if not.")
+parser.add_argument('--model', type=int, required=True, help="Please specify 0 if ResNet101 and 1 if AlexNet.")
 args = parser.parse_args()
 
 batch_size = 32
-data_dir = '../../data/train'
+data_dir = './segmented_data_60_40/train'
 dataset, train_loader, validation_loader = create_torch_loaders(data_dir, batch_size)
 
 targets_size = len(dataset.class_to_idx)
@@ -56,17 +60,30 @@ targets_size = len(dataset.class_to_idx)
 # run on GPU if available else run on a CPU
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-model = MyModel(targets_size)
+if (args.model == 0):
+    model = ResNet101(targets_size)
+elif (args.model == 1):
+    model = AlexNet(targets_size)
+else:
+    model = MyModel(targets_size)
 model.to(device)
 
-#print(summary(model, (3, 224, 224)))
-
-criterion = nn.CrossEntropyLoss()  # this include softmax + cross entropy loss
+summary(model, (3, 460, 460))
+class_wts = [2.18792477, 2.38097695, 4.95631937, 0.87359586, 0.94010187, 1.38776942
+            , 1.68263036, 2.83493754, 1.22450243, 1.46300993, 1.25185386, 1.20227549
+            , 1.02906631, 1.3319542, 3.35750667, 0.2614205, 0.62754431, 4.02529805
+            , 1.4147164, 0.98059078, 1.42858617, 1.42023187, 9.5865651, 3.91709111
+            , 0.28033049, 0.76451096, 1.30569704, 2.96170304, 0.67586173, 1.4147164
+            , 0.73742808, 1.46595362, 0.80505961, 0.85313694, 1.02472426, 0.26455299
+            , 3.95966819, 0.90059202]
+class_wts = torch.FloatTensor(class_wts)
+criterion1 = nn.CrossEntropyLoss(weight=class_wts)  # this include softmax + cross entropy loss
+criterion2 = nn.MSELoss()
 optimizer = torch.optim.Adam(model.parameters())
 
 if args.mode == 0:
     model, train_losses, validation_losses = batch_gd(
-        model, optimizer, criterion, train_loader, validation_loader, 100, device
+        model, optimizer, criterion1, criterion2, train_loader, validation_loader, 1, device, args.model
     )
     torch.save(model.state_dict() , 'dm_model_main.pt')
 
@@ -75,11 +92,11 @@ else:
     model.load_state_dict(torch.load("dm_model_main.pt"))
     model.eval()
 
-train_acc = accuracy(train_loader)
-validation_acc = accuracy(validation_loader)
+train_acc = accuracy(train_loader, args.model)
+validation_acc = accuracy(validation_loader, args.model)
 
-test_dir = '../../data/test/'
-test_loader = create_test_loader(test_dir, batch_size)
+test_dir = './segmented_data_60_40/test/'
+test_loader = create_test_loader(test_dir, batch_size, args.model)
 test_acc = accuracy(test_loader)
 
 print(

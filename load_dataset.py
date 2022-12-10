@@ -6,7 +6,7 @@ from torch.utils.data.sampler import SubsetRandomSampler
 
 def create_torch_loaders(data_dir, batch_size):
     transform = transforms.Compose(
-        [transforms.Resize(255), transforms.CenterCrop(224), transforms.ToTensor()]
+        [transforms.Resize(size=(460, 460)), transforms.ToTensor()]
     )
 
     dataset = datasets.ImageFolder(data_dir, transform=transform)
@@ -40,6 +40,7 @@ def create_torch_loaders(data_dir, batch_size):
     train_loader = torch.utils.data.DataLoader(
         dataset, batch_size=batch_size, sampler=train_sampler
     )
+
     validation_loader = torch.utils.data.DataLoader(
         dataset, batch_size=batch_size, sampler=validation_sampler
     )
